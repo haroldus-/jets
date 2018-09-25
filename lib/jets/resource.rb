@@ -2,6 +2,7 @@ class Jets::Resource
   extend Memoist
 
   autoload :ApiGateway, 'jets/resource/api_gateway'
+  autoload :Associated, 'jets/resource/associated'
   autoload :Base, 'jets/resource/base'
   autoload :ChildStack, 'jets/resource/child_stack'
   autoload :Config, 'jets/resource/config'
@@ -12,6 +13,7 @@ class Jets::Resource
   autoload :Replacer, 'jets/resource/replacer'
   autoload :S3, 'jets/resource/s3'
   autoload :Sns, 'jets/resource/sns'
+  autoload :Standardizer, 'jets/resource/standardizer'
 
   attr_reader :definition, :replacements
   def initialize(definition, replacements={})
@@ -19,8 +21,18 @@ class Jets::Resource
     @replacements = replacements
   end
 
+  def template
+    standarize(definition)
+  end
+  memoize :template
+
+  # CloudFormation Resources reference: https://amzn.to/2NKg6ip
+  def standarize(*definition)
+    Standardizer.new(definition).template
+  end
+
   def logical_id
-    id = definition.keys.first
+    id = template.keys.first
     # replace possible {namespace} in the logical id
     id = replacer.replace_value(id)
     Jets::Camelizer.camelize(id)
@@ -35,7 +47,7 @@ class Jets::Resource
   end
 
   def attributes
-    attributes = definition.values.first
+    attributes = template.values.first
     attributes = replacer.replace_placeholders(attributes)
     Jets::Camelizer.transform(attributes)
   end

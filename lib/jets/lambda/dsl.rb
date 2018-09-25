@@ -134,14 +134,14 @@ module Jets::Lambda::Dsl
       end
 
       #############################
-      # Main methood that registers resources associated with the Lambda function.
+      # Main method that registers resources associated with the Lambda function.
       # All resources methods lead here.
       def associated_resources(*definitions)
         if definitions == [nil] # when associated_resources called with no arguments
           @associated_resources || []
         else
           @associated_resources ||= []
-          @associated_resources += definitions
+          @associated_resources << Jets::Resource::Associated.new(definitions)
           @associated_resources.flatten!
         end
       end
@@ -176,13 +176,25 @@ module Jets::Lambda::Dsl
       def add_logical_id_counter
         numbered_resources = []
         n = 1
-        @associated_resources.map do |definition|
-          logical_id = definition.keys.first
+        @associated_resources.map do |associated|
+          logical_id = associated.logical_id
+          attributes = associated.attributes
+
           logical_id = logical_id.sub(/\d+$/,'')
-          numbered_resources << { "#{logical_id}#{n}" => definition.values.first }
+          new_definition = { "#{logical_id}#{n}" => attributes }
+          numbered_resources << Jets::Resource::Associated.new(new_definition)
           n += 1
         end
         @associated_resources = numbered_resources
+      end
+
+      def depends_on(*stacks)
+        if stacks == []
+          @depends_on
+        else
+          @depends_on ||= []
+          @depends_on += stacks
+        end
       end
 
       # meth is a Symbol
@@ -200,7 +212,7 @@ module Jets::Lambda::Dsl
 
         # At this point we can use the current associated_properties and defined the
         # associated resource with the Lambda function.
-        if !associated_properties.empty?
+        unless associated_properties.empty?
           associated_resources(default_associated_resource_definition(meth))
         end
 
@@ -289,6 +301,25 @@ module Jets::Lambda::Dsl
       def node(meth)
         defpoly(:node, meth)
       end
+    end # end of class << self
+  end # end of included
+
+  def self.add_custom_resource_extensions(base)
+    base_path = "#{Jets.root}/app/extensions"
+    unless ActiveSupport::Dependencies.autoload_paths.include?(base_path)
+      ActiveSupport::Dependencies.autoload_paths += [base_path]
     end
+
+    Dir.glob("#{base_path}/**/*.rb").each do |path|
+      next unless File.file?(path)
+
+      class_name = path.sub("#{base_path}/", '').sub(/\.rb/,'').classify
+      klass = class_name.constantize # autoload
+      base.extend(klass)
+    end
+  end
+
+  def self.included(base)
+    add_custom_resource_extensions(base)
   end
 end

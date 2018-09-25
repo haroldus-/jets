@@ -18,3 +18,4 @@ require 'jets/rdoc'
 RDoc::Task.new do |rdoc|
   rdoc.options += Jets::Rdoc.options
 end
+
